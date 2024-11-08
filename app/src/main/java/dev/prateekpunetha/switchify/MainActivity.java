@@ -1,4 +1,6 @@
 package dev.prateekpunetha.switchify;
+
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,6 +16,7 @@ public class MainActivity extends AppCompatActivity {
 
     private MaterialSwitch relay1Switch, relay2Switch;
     private RequestQueue queue;
+    private SharedPreferences sharedPreferences;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -23,12 +26,23 @@ public class MainActivity extends AppCompatActivity {
         relay1Switch = findViewById(R.id.relay1Switch);
         relay2Switch = findViewById(R.id.relay2Switch);
         queue = Volley.newRequestQueue(this);
+        sharedPreferences = getSharedPreferences("RelayPreferences", MODE_PRIVATE);
+
+        // Load saved switch states
+        loadSwitchStates();
 
         // Fetch initial state from ESP8266
         fetchRelayState();
 
-        relay1Switch.setOnCheckedChangeListener((buttonView, isChecked) -> toggleRelay("/relay1", isChecked));
-        relay2Switch.setOnCheckedChangeListener((buttonView, isChecked) -> toggleRelay("/relay2", isChecked));
+        relay1Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            toggleRelay("/relay1", isChecked);
+            saveSwitchState("relay1", isChecked); // Save state
+        });
+
+        relay2Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            toggleRelay("/relay2", isChecked);
+            saveSwitchState("relay2", isChecked); // Save state
+        });
     }
 
     private void fetchRelayState() {
@@ -59,5 +73,18 @@ public class MainActivity extends AppCompatActivity {
 
         queue.add(request);
     }
-}
 
+    private void saveSwitchState(String relayKey, boolean isChecked) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putBoolean(relayKey, isChecked);
+        editor.apply();
+    }
+
+    private void loadSwitchStates() {
+        boolean relay1State = sharedPreferences.getBoolean("relay1", false); // Default is false (off)
+        boolean relay2State = sharedPreferences.getBoolean("relay2", false); // Default is false (off)
+
+        relay1Switch.setChecked(relay1State);
+        relay2Switch.setChecked(relay2State);
+    }
+}
