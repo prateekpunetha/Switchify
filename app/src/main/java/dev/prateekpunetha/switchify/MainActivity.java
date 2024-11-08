@@ -1,5 +1,6 @@
 package dev.prateekpunetha.switchify;
 
+import android.app.Application;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -9,6 +10,8 @@ import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.material.materialswitch.MaterialSwitch;
+
+
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "RelayControlActivity";
