@@ -74,6 +74,9 @@ public class MainActivity extends AppCompatActivity {
             selectedRelayContainer = relay1Container;
             selectedRelayNumber = 1;
             relay1Container.setChecked(true);
+            if(renameMenuItem != null){
+                renameMenuItem.setVisible(true);
+            }
             return true;
         });
 
@@ -84,6 +87,9 @@ public class MainActivity extends AppCompatActivity {
             selectedRelayContainer = relay2Container;
             selectedRelayNumber = 2;
             relay2Container.setChecked(true);
+            if(renameMenuItem != null){
+                renameMenuItem.setVisible(true);
+            }
             return true;
         });
 
@@ -98,11 +104,16 @@ public class MainActivity extends AppCompatActivity {
             selectedRelayContainer = null;
             selectedRelayNumber = -1;
         }
+        if(renameMenuItem != null){
+            renameMenuItem.setVisible(false);
+        }
     }
 
+    private MenuItem renameMenuItem;
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.rename_relay, menu);
+        renameMenuItem = menu.findItem(R.id.menu_action_edit);
         return true;
     }
 
