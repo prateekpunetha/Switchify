@@ -7,6 +7,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
+import androidx.appcompat.widget.Toolbar;
 import androidx.appcompat.app.AppCompatActivity;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
@@ -34,6 +35,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Toolbar appToolbar = ( Toolbar) findViewById(R.id.main_toolbar);
+        setSupportActionBar(appToolbar);
 
         relay1Switch = findViewById(R.id.relay1Switch);
         relay2Switch = findViewById(R.id.relay2Switch);
