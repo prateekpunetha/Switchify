@@ -6,47 +6,66 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <LinearLayout
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/relay1Container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
-        android:orientation="horizontal"
-        android:background="?attr/selectableItemBackground">
+        android:layout_marginTop="8dp"
+        android:checkable="true"
+        app:cardElevation="0dp"
+        style="@style/Widget.Material3.CardView.Elevated">
 
-        <TextView
-            android:id="@+id/relay1Text"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Relay 1"
-            android:textSize="18sp" />
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/relay1Switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/relay1Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Relay 1"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
 
-    <LinearLayout
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/relay1Switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/relay2Container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:orientation="horizontal"
-        android:background="?attr/selectableItemBackground">
+        android:layout_marginTop="8dp"
+        android:checkable="true"
+        app:cardElevation="0dp"
+        style="@style/Widget.Material3.CardView.Elevated">
 
-        <TextView
-            android:id="@+id/relay2Text"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Relay 2"
-            android:textSize="18sp" />
+            android:orientation="horizontal"
+            android:padding="16dp">
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/relay2Switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
+            <TextView
+                android:id="@+id/relay2Text"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Relay 2"
+                android:textAppearance="?attr/textAppearanceBodyLarge" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/relay2Switch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+    </com.google.android.material.card.MaterialCardView>
+
 </LinearLayout>

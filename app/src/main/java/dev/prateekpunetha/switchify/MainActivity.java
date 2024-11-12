@@ -12,6 +12,7 @@ import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -23,9 +24,10 @@ public class MainActivity extends AppCompatActivity {
 
     private MaterialSwitch relay1Switch, relay2Switch;
     private TextView relay1Text, relay2Text;
+    private MaterialCardView relay1Container, relay2Container;
     private RequestQueue queue;
     private SharedPreferences sharedPreferences;
-    private View selectedRelayContainer = null;
+    private MaterialCardView selectedRelayContainer = null;
     private int selectedRelayNumber = -1;
 
     @Override
@@ -37,6 +39,8 @@ public class MainActivity extends AppCompatActivity {
         relay2Switch = findViewById(R.id.relay2Switch);
         relay1Text = findViewById(R.id.relay1Text);
         relay2Text = findViewById(R.id.relay2Text);
+        relay1Container = findViewById(R.id.relay1Container);
+        relay2Container = findViewById(R.id.relay2Container);
 
         queue = Volley.newRequestQueue(this);
         sharedPreferences = getSharedPreferences("RelayPreferences", MODE_PRIVATE);
@@ -63,41 +67,34 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupLongPressListeners() {
-        View relay1Container = findViewById(R.id.relay1Container);
-        View relay2Container = findViewById(R.id.relay2Container);
-
         relay1Container.setOnLongClickListener(v -> {
-            // Reset previous selection background if any
             if (selectedRelayContainer != null) {
-                selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+                selectedRelayContainer.setChecked(false);
             }
-            // Set new selection
-            selectedRelayContainer = v;
+            selectedRelayContainer = relay1Container;
             selectedRelayNumber = 1;
-            v.setBackgroundResource(com.google.android.material.R.color.material_grey_300);
+            relay1Container.setChecked(true);
             return true;
         });
 
         relay2Container.setOnLongClickListener(v -> {
-            // Reset previous selection background if any
             if (selectedRelayContainer != null) {
-                selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+                selectedRelayContainer.setChecked(false);
             }
-            // Set new selection
-            selectedRelayContainer = v;
+            selectedRelayContainer = relay2Container;
             selectedRelayNumber = 2;
-            v.setBackgroundResource(com.google.android.material.R.color.material_grey_300);
+            relay2Container.setChecked(true);
             return true;
         });
 
-        // Add click listeners to clear selection
+        // Add click listener to clear selection
         View mainContainer = findViewById(android.R.id.content);
         mainContainer.setOnClickListener(v -> clearSelection());
     }
 
     private void clearSelection() {
         if (selectedRelayContainer != null) {
-            selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+            selectedRelayContainer.setChecked(false);
             selectedRelayContainer = null;
             selectedRelayNumber = -1;
         }
@@ -122,7 +119,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void showRenameDialog(int relayNumber) {
-        TextInputLayout textInputLayout = new TextInputLayout(this);
+        TextInputLayout textInputLayout = new TextInputLayout(this, null, com.google.android.material.R.style.Widget_Material3_TextInputLayout_OutlinedBox);
+
         TextInputEditText editText = new TextInputEditText(textInputLayout.getContext());
         textInputLayout.addView(editText);
 
@@ -133,8 +131,12 @@ public class MainActivity extends AppCompatActivity {
         editText.setText(currentName);
         editText.setSelection(currentName.length());
 
-        new MaterialAlertDialogBuilder(this)
-                .setTitle("Rename Relay " + relayNumber)
+        // Add padding to the TextInputLayout
+        int padding = getResources().getDimensionPixelSize(android.R.dimen.app_icon_size) / 2;
+        textInputLayout.setPadding(padding, 0, padding, 0);
+
+        new MaterialAlertDialogBuilder(this, com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog)
+                .setTitle("Rename")
                 .setView(textInputLayout)
                 .setPositiveButton("Save", (dialog, which) -> {
                     String newName = editText.getText().toString().trim();
@@ -179,7 +181,7 @@ public class MainActivity extends AppCompatActivity {
 
         StringRequest request = new StringRequest(Request.Method.GET, url,
                 response -> {
-                    switchMaterial.setOnCheckedChangeListener(null); // Temporarily remove listener
+                    switchMaterial.setOnCheckedChangeListener(null);
                     switchMaterial.setChecked("on".equals(response.trim()));
                     switchMaterial.setOnCheckedChangeListener((buttonView, isChecked) ->
                             toggleRelay(endpoint.replace("/state", ""), isChecked));
