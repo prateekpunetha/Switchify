@@ -1,25 +1,32 @@
 package dev.prateekpunetha.switchify;
 
-import android.app.Application;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.materialswitch.MaterialSwitch;
-
-
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "RelayControlActivity";
     private static final String ESP8266_IP = "192.168.51.114";
 
     private MaterialSwitch relay1Switch, relay2Switch;
+    private TextView relay1Text, relay2Text;
     private RequestQueue queue;
     private SharedPreferences sharedPreferences;
+    private View selectedRelayContainer = null;
+    private int selectedRelayNumber = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,24 +35,138 @@ public class MainActivity extends AppCompatActivity {
 
         relay1Switch = findViewById(R.id.relay1Switch);
         relay2Switch = findViewById(R.id.relay2Switch);
+        relay1Text = findViewById(R.id.relay1Text);
+        relay2Text = findViewById(R.id.relay2Text);
+
         queue = Volley.newRequestQueue(this);
         sharedPreferences = getSharedPreferences("RelayPreferences", MODE_PRIVATE);
 
-        // Load saved switch states
+        // Load saved switch states and names
         loadSwitchStates();
+        loadRelayNames();
+
+        // Setup long press listeners
+        setupLongPressListeners();
 
         // Fetch initial state from ESP8266
         fetchRelayState();
 
         relay1Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             toggleRelay("/relay1", isChecked);
-            saveSwitchState("relay1", isChecked); // Save state
+            saveSwitchState("relay1", isChecked);
         });
 
         relay2Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             toggleRelay("/relay2", isChecked);
-            saveSwitchState("relay2", isChecked); // Save state
+            saveSwitchState("relay2", isChecked);
         });
+    }
+
+    private void setupLongPressListeners() {
+        View relay1Container = findViewById(R.id.relay1Container);
+        View relay2Container = findViewById(R.id.relay2Container);
+
+        relay1Container.setOnLongClickListener(v -> {
+            // Reset previous selection background if any
+            if (selectedRelayContainer != null) {
+                selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+            }
+            // Set new selection
+            selectedRelayContainer = v;
+            selectedRelayNumber = 1;
+            v.setBackgroundResource(com.google.android.material.R.color.material_grey_300);
+            return true;
+        });
+
+        relay2Container.setOnLongClickListener(v -> {
+            // Reset previous selection background if any
+            if (selectedRelayContainer != null) {
+                selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+            }
+            // Set new selection
+            selectedRelayContainer = v;
+            selectedRelayNumber = 2;
+            v.setBackgroundResource(com.google.android.material.R.color.material_grey_300);
+            return true;
+        });
+
+        // Add click listeners to clear selection
+        View mainContainer = findViewById(android.R.id.content);
+        mainContainer.setOnClickListener(v -> clearSelection());
+    }
+
+    private void clearSelection() {
+        if (selectedRelayContainer != null) {
+            selectedRelayContainer.setBackgroundResource(android.R.color.transparent);
+            selectedRelayContainer = null;
+            selectedRelayNumber = -1;
+        }
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.rename_relay, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == R.id.menu_action_edit) {
+            if (selectedRelayNumber != -1) {
+                showRenameDialog(selectedRelayNumber);
+                clearSelection();
+            }
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    private void showRenameDialog(int relayNumber) {
+        TextInputLayout textInputLayout = new TextInputLayout(this);
+        TextInputEditText editText = new TextInputEditText(textInputLayout.getContext());
+        textInputLayout.addView(editText);
+
+        String currentName = relayNumber == 1 ?
+                relay1Text.getText().toString() :
+                relay2Text.getText().toString();
+
+        editText.setText(currentName);
+        editText.setSelection(currentName.length());
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Rename Relay " + relayNumber)
+                .setView(textInputLayout)
+                .setPositiveButton("Save", (dialog, which) -> {
+                    String newName = editText.getText().toString().trim();
+                    if (!newName.isEmpty()) {
+                        saveRelayName(relayNumber, newName);
+                        updateRelayName(relayNumber, newName);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void saveRelayName(int relayNumber, String name) {
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.putString("relay" + relayNumber + "_name", name);
+        editor.apply();
+    }
+
+    private void updateRelayName(int relayNumber, String name) {
+        if (relayNumber == 1) {
+            relay1Text.setText(name);
+        } else {
+            relay2Text.setText(name);
+        }
+    }
+
+    private void loadRelayNames() {
+        String relay1Name = sharedPreferences.getString("relay1_name", "Relay 1");
+        String relay2Name = sharedPreferences.getString("relay2_name", "Relay 2");
+
+        relay1Text.setText(relay1Name);
+        relay2Text.setText(relay2Name);
     }
 
     private void fetchRelayState() {
@@ -60,7 +181,8 @@ public class MainActivity extends AppCompatActivity {
                 response -> {
                     switchMaterial.setOnCheckedChangeListener(null); // Temporarily remove listener
                     switchMaterial.setChecked("on".equals(response.trim()));
-                    switchMaterial.setOnCheckedChangeListener((buttonView, isChecked) -> toggleRelay(endpoint, isChecked));
+                    switchMaterial.setOnCheckedChangeListener((buttonView, isChecked) ->
+                            toggleRelay(endpoint.replace("/state", ""), isChecked));
                 },
                 error -> Log.e(TAG, "Error fetching state: " + error.getMessage()));
 
@@ -84,8 +206,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void loadSwitchStates() {
-        boolean relay1State = sharedPreferences.getBoolean("relay1", false); // Default is false (off)
-        boolean relay2State = sharedPreferences.getBoolean("relay2", false); // Default is false (off)
+        boolean relay1State = sharedPreferences.getBoolean("relay1", false);
+        boolean relay2State = sharedPreferences.getBoolean("relay2", false);
 
         relay1Switch.setChecked(relay1State);
         relay2Switch.setChecked(relay2State);
