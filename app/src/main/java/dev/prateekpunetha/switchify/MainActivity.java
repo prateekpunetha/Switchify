@@ -1,5 +1,6 @@
 package dev.prateekpunetha.switchify;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
@@ -28,7 +29,7 @@ import com.google.android.material.materialswitch.MaterialSwitch;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "RelayControlActivity";
-    private static final String ESP8266_IP = "192.168.51.114";
+    private static final String ESP8266_IP = "192.168.51.33";
 
     private MaterialSwitch relay1Switch, relay2Switch;
     private TextView relay1Text, relay2Text;
@@ -149,6 +150,10 @@ public class MainActivity extends AppCompatActivity {
             }
             return true;
         }
+
+        Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
+        startActivity(intent);
+        
         return super.onOptionsItemSelected(item);
     }
 
