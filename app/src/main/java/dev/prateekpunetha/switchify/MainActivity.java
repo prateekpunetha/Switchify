@@ -39,16 +39,18 @@ public class MainActivity extends AppCompatActivity {
     private MaterialCardView selectedRelayContainer = null;
     private int selectedRelayNumber = -1;
 
+    private MenuItem renameMenuItem;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         EdgeToEdge.enable(this);
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Toolbar appToolbar = ( Toolbar) findViewById(R.id.main_toolbar);
+        Toolbar appToolbar = findViewById(R.id.main_toolbar);
         setSupportActionBar(appToolbar);
 
-        // handle overlaps using insets
+        // Handle overlaps using insets
         ViewCompat.setOnApplyWindowInsetsListener(appToolbar, (v, windowInsets) -> {
             Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
             ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) v.getLayoutParams();
@@ -92,28 +94,12 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupLongPressListeners() {
         relay1Container.setOnLongClickListener(v -> {
-            if (selectedRelayContainer != null) {
-                selectedRelayContainer.setChecked(false);
-            }
-            selectedRelayContainer = relay1Container;
-            selectedRelayNumber = 1;
-            relay1Container.setChecked(true);
-            if(renameMenuItem != null){
-                renameMenuItem.setVisible(true);
-            }
+            handleRelaySelection(relay1Container, 1);
             return true;
         });
 
         relay2Container.setOnLongClickListener(v -> {
-            if (selectedRelayContainer != null) {
-                selectedRelayContainer.setChecked(false);
-            }
-            selectedRelayContainer = relay2Container;
-            selectedRelayNumber = 2;
-            relay2Container.setChecked(true);
-            if(renameMenuItem != null){
-                renameMenuItem.setVisible(true);
-            }
+            handleRelaySelection(relay2Container, 2);
             return true;
         });
 
@@ -122,18 +108,29 @@ public class MainActivity extends AppCompatActivity {
         mainContainer.setOnClickListener(v -> clearSelection());
     }
 
+    private void handleRelaySelection(MaterialCardView relayContainer, int relayNumber) {
+        if (selectedRelayContainer != null) {
+            selectedRelayContainer.setChecked(false);
+        }
+        selectedRelayContainer = relayContainer;
+        selectedRelayNumber = relayNumber;
+        relayContainer.setChecked(true);
+        if (renameMenuItem != null) {
+            renameMenuItem.setVisible(true);
+        }
+    }
+
     private void clearSelection() {
         if (selectedRelayContainer != null) {
             selectedRelayContainer.setChecked(false);
             selectedRelayContainer = null;
             selectedRelayNumber = -1;
         }
-        if(renameMenuItem != null){
+        if (renameMenuItem != null) {
             renameMenuItem.setVisible(false);
         }
     }
 
-    private MenuItem renameMenuItem;
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
@@ -153,7 +150,7 @@ public class MainActivity extends AppCompatActivity {
 
         Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
         startActivity(intent);
-        
+
         return super.onOptionsItemSelected(item);
     }
 
@@ -163,16 +160,10 @@ public class MainActivity extends AppCompatActivity {
         TextInputEditText editText = new TextInputEditText(textInputLayout.getContext());
         textInputLayout.addView(editText);
 
-        String currentName = relayNumber == 1 ?
-                relay1Text.getText().toString() :
-                relay2Text.getText().toString();
+        String currentName = relayNumber == 1 ? relay1Text.getText().toString() : relay2Text.getText().toString();
 
         editText.setText(currentName);
         editText.setSelection(currentName.length());
-
-        // Add padding to the TextInputLayout
-        int padding = getResources().getDimensionPixelSize(android.R.dimen.app_icon_size) / 2;
-        textInputLayout.setPadding(padding, 0, padding, 0);
 
         new MaterialAlertDialogBuilder(this, com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog)
                 .setTitle("Rename")
@@ -211,27 +202,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void fetchRelayState() {
-        fetchStateForSwitch("/relay1/state", relay1Switch);
-        fetchStateForSwitch("/relay2/state", relay2Switch);
+        fetchStateForSwitch("/relay1", relay1Switch);
+        fetchStateForSwitch("/relay2", relay2Switch);
     }
 
-    private void fetchStateForSwitch(String endpoint, MaterialSwitch switchMaterial) {
-        String url = "http://" + ESP8266_IP + endpoint;
+    private void fetchStateForSwitch(String relayEndpoint, MaterialSwitch switchMaterial) {
+        String url = "http://" + ESP8266_IP + relayEndpoint + "/state";
 
         StringRequest request = new StringRequest(Request.Method.GET, url,
                 response -> {
                     switchMaterial.setOnCheckedChangeListener(null);
                     switchMaterial.setChecked("on".equals(response.trim()));
                     switchMaterial.setOnCheckedChangeListener((buttonView, isChecked) ->
-                            toggleRelay(endpoint.replace("/state", ""), isChecked));
+                            toggleRelay(relayEndpoint, isChecked));
                 },
                 error -> Log.e(TAG, "Error fetching state: " + error.getMessage()));
 
         queue.add(request);
     }
 
-    private void toggleRelay(String endpoint, boolean isChecked) {
-        String url = "http://" + ESP8266_IP + endpoint + "?state=" + (isChecked ? "on" : "off");
+    private void toggleRelay(String relayEndpoint, boolean isChecked) {
+        String endpoint = relayEndpoint + "/" + (isChecked ? "on" : "off");
+        String url = "http://" + ESP8266_IP + endpoint;
+
+        Log.d(TAG, "Constructed URL: " + url);
 
         StringRequest request = new StringRequest(Request.Method.GET, url,
                 response -> Log.d(TAG, "Response: " + response),
