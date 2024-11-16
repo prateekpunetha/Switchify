@@ -135,6 +135,9 @@ public class MainActivity extends AppCompatActivity {
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
         renameMenuItem = menu.findItem(R.id.menu_action_edit);
+        if(renameMenuItem != null){
+            renameMenuItem.setVisible(false);
+        }
         return true;
     }
 
