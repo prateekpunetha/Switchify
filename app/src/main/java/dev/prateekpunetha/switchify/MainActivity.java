@@ -1,18 +1,24 @@
 package dev.prateekpunetha.switchify;
 
+import android.animation.ObjectAnimator;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.widget.Toolbar;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -23,13 +29,19 @@ import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.android.material.materialswitch.MaterialSwitch;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "RelayControlActivity";
     private static final String ESP8266_IP = "192.168.51.33";
+    private static final int ANIMATION_DURATION = 300;
 
     private MaterialSwitch relay1Switch, relay2Switch;
     private TextView relay1Text, relay2Text;
@@ -39,7 +51,9 @@ public class MainActivity extends AppCompatActivity {
     private MaterialCardView selectedRelayContainer = null;
     private int selectedRelayNumber = -1;
 
-    private MenuItem renameMenuItem;
+    private MenuItem renameMenuItem, timerMenuItem, timerDisplayMenuItem;
+    private Map<Integer, Timer> relayTimers = new HashMap<>();
+    private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,6 +63,7 @@ public class MainActivity extends AppCompatActivity {
 
         Toolbar appToolbar = findViewById(R.id.main_toolbar);
         setSupportActionBar(appToolbar);
+
 
         // Handle overlaps using insets
         ViewCompat.setOnApplyWindowInsetsListener(appToolbar, (v, windowInsets) -> {
@@ -82,14 +97,39 @@ public class MainActivity extends AppCompatActivity {
         fetchRelayState();
 
         relay1Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!buttonView.isPressed()) {
+                animateSwitch(relay1Switch, isChecked);
+            }
             toggleRelay("/relay1", isChecked);
             saveSwitchState("relay1", isChecked);
+            cancelTimer(1);
+            updateRelayVisuals(relay1Container, isChecked);
         });
 
         relay2Switch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!buttonView.isPressed()) {
+                animateSwitch(relay2Switch, isChecked);
+            }
             toggleRelay("/relay2", isChecked);
             saveSwitchState("relay2", isChecked);
+            cancelTimer(2);
+            updateRelayVisuals(relay2Container, isChecked);
         });
+    }
+
+    private void animateSwitch(MaterialSwitch switchView, boolean newState) {
+        ObjectAnimator thumbAnimator = ObjectAnimator.ofFloat(
+                switchView,
+                "thumbPosition",
+                newState ? 1.0f : 0.0f
+        );
+        thumbAnimator.setDuration(ANIMATION_DURATION);
+        thumbAnimator.setInterpolator(new AccelerateDecelerateInterpolator());
+        thumbAnimator.start();
+    }
+
+    private void updateRelayVisuals(MaterialCardView container, boolean isOn) {
+        container.setStrokeColor(ContextCompat.getColor(this, isOn ? R.color.colorAccent : android.R.color.transparent));
     }
 
     private void setupLongPressListeners() {
@@ -103,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
             return true;
         });
 
-        // Add click listener to clear selection
         View mainContainer = findViewById(android.R.id.content);
         mainContainer.setOnClickListener(v -> clearSelection());
     }
@@ -115,9 +154,8 @@ public class MainActivity extends AppCompatActivity {
         selectedRelayContainer = relayContainer;
         selectedRelayNumber = relayNumber;
         relayContainer.setChecked(true);
-        if (renameMenuItem != null) {
-            renameMenuItem.setVisible(true);
-        }
+        if (renameMenuItem != null) renameMenuItem.setVisible(true);
+        if (timerMenuItem != null) timerMenuItem.setVisible(true);
     }
 
     private void clearSelection() {
@@ -126,18 +164,20 @@ public class MainActivity extends AppCompatActivity {
             selectedRelayContainer = null;
             selectedRelayNumber = -1;
         }
-        if (renameMenuItem != null) {
-            renameMenuItem.setVisible(false);
-        }
+        if (renameMenuItem != null) renameMenuItem.setVisible(false);
+        if (timerMenuItem != null) timerMenuItem.setVisible(false);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
         renameMenuItem = menu.findItem(R.id.menu_action_edit);
-        if(renameMenuItem != null){
-            renameMenuItem.setVisible(false);
-        }
+        timerMenuItem = menu.findItem(R.id.menu_action_timer);
+        timerDisplayMenuItem = menu.findItem(R.id.menu_timer_display);
+
+        if (renameMenuItem != null) renameMenuItem.setVisible(false);
+        if (timerMenuItem != null) timerMenuItem.setVisible(false);
+        if (timerDisplayMenuItem != null) timerDisplayMenuItem.setVisible(false);
         return true;
     }
 
@@ -149,6 +189,12 @@ public class MainActivity extends AppCompatActivity {
                 clearSelection();
             }
             return true;
+        } else if (item.getItemId() == R.id.menu_action_timer) {
+            if (selectedRelayNumber != -1) {
+                showTimerDialog(selectedRelayNumber);
+                clearSelection();
+            }
+            return true;
         }
 
         Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
@@ -157,25 +203,154 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void showRenameDialog(int relayNumber) {
-        TextInputLayout textInputLayout = new TextInputLayout(this, null, com.google.android.material.R.style.Widget_Material3_TextInputLayout_OutlinedBox);
-
+    private void showTimerDialog(int relayNumber) {
+        TextInputLayout textInputLayout = new TextInputLayout(this, null,
+                com.google.android.material.R.style.Widget_Material3_TextInputLayout_OutlinedBox);
         TextInputEditText editText = new TextInputEditText(textInputLayout.getContext());
         textInputLayout.addView(editText);
 
-        String currentName = relayNumber == 1 ? relay1Text.getText().toString() : relay2Text.getText().toString();
+        MaterialSwitch targetSwitch = (relayNumber == 1) ? relay1Switch : relay2Switch;
+        boolean currentState = targetSwitch.isChecked();
 
-        editText.setText(currentName);
-        editText.setSelection(currentName.length());
+        editText.setHint("Enter timer duration (seconds)");
 
-        new MaterialAlertDialogBuilder(this, com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog)
-                .setTitle("Rename")
+        new MaterialAlertDialogBuilder(this,
+                com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog)
+                .setTitle("Set Timer")
+                .setMessage("Switch will turn " + (currentState ? "OFF" : "ON") + " after timer expires")
                 .setView(textInputLayout)
-                .setPositiveButton("Save", (dialog, which) -> {
+                .setPositiveButton("Set", (dialog, which) -> {
+                    String input = editText.getText().toString().trim();
+                    if (!input.isEmpty()) {
+                        try {
+                            int seconds = Integer.parseInt(input);
+                            setRelayTimer(relayNumber, seconds);
+                        } catch (NumberFormatException e) {
+                            Toast.makeText(this, "Invalid duration", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void setRelayTimer(int relayNumber, int seconds) {
+        cancelTimer(relayNumber);
+
+        Timer timer = new Timer();
+        relayTimers.put(relayNumber, timer);
+
+        final MaterialSwitch targetSwitch = (relayNumber == 1) ? relay1Switch : relay2Switch;
+        final MaterialCardView targetContainer = (relayNumber == 1) ? relay1Container : relay2Container;
+        final TextView targetText = (relayNumber == 1) ? relay1Text : relay2Text;
+        final String relayEndpoint = "/relay" + relayNumber;
+        final boolean initialState = targetSwitch.isChecked();
+        final long startTime = System.currentTimeMillis();
+        final long endTime = startTime + (seconds * 1000);
+
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                long currentTime = System.currentTimeMillis();
+                long remainingTime = (endTime - currentTime) / 1000;
+
+                mainHandler.post(() -> {
+                    if (remainingTime > 0) {
+                        updateTimerDisplay(relayNumber, targetText.getText().toString(), remainingTime);
+                    } else {
+                        // Toggle to opposite of initial state
+                        boolean newState = !initialState;
+                        targetSwitch.setChecked(newState);
+                        animateSwitch(targetSwitch, newState);
+                        updateRelayVisuals(targetContainer, newState);
+                        toggleRelay(relayEndpoint, newState);
+                        saveSwitchState("relay" + relayNumber, newState);
+                        hideTimerDisplay();
+                        cancel();
+                        relayTimers.remove(relayNumber);
+
+                        Toast.makeText(MainActivity.this,
+                                "Timer completed for " + targetText.getText() +
+                                        " - Switched " + (newState ? "ON" : "OFF"),
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        }, 0, 1000);
+
+        // Keep the initial state
+        targetSwitch.setChecked(initialState);
+        updateRelayVisuals(targetContainer, initialState);
+        Toast.makeText(this, String.format("Timer set for %d seconds - Will turn %s",
+                seconds, initialState ? "OFF" : "ON"), Toast.LENGTH_SHORT).show();
+    }
+
+    private void cancelTimer(int relayNumber) {
+        Timer existingTimer = relayTimers.get(relayNumber);
+        if (existingTimer != null) {
+            existingTimer.cancel();
+            relayTimers.remove(relayNumber);
+            hideTimerDisplay();
+        }
+    }
+
+    private void updateTimerDisplay(int relayNumber, String relayName, long remainingSeconds) {
+        if (timerDisplayMenuItem != null) {
+            timerDisplayMenuItem.setVisible(true);
+            timerDisplayMenuItem.setTitle(String.format("%s: %ds", relayName, remainingSeconds));
+        }
+    }
+
+    private void hideTimerDisplay() {
+        if (timerDisplayMenuItem != null) {
+            timerDisplayMenuItem.setVisible(false);
+        }
+    }
+
+    private void toggleRelay(String endpoint, boolean state) {
+        String url = "http://" + ESP8266_IP + endpoint + (state ? "/on" : "/off");
+        StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                response -> Log.d(TAG, "Relay toggled successfully"),
+                error -> Log.e(TAG, "Error toggling relay", error));
+        queue.add(stringRequest);
+    }
+
+    private void saveSwitchState(String key, boolean state) {
+        sharedPreferences.edit().putBoolean(key, state).apply();
+    }
+
+    private void loadSwitchStates() {
+        relay1Switch.setChecked(sharedPreferences.getBoolean("relay1", false));
+        relay2Switch.setChecked(sharedPreferences.getBoolean("relay2", false));
+    }
+
+    private void fetchRelayState() {
+        toggleRelay("/state", false);
+    }
+
+    private void loadRelayNames() {
+        relay1Text.setText(sharedPreferences.getString("relay1_name", "Relay 1"));
+        relay2Text.setText(sharedPreferences.getString("relay2_name", "Relay 2"));
+    }
+
+    private void showRenameDialog(int relayNumber) {
+        TextInputLayout textInputLayout = new TextInputLayout(this, null,
+                com.google.android.material.R.style.Widget_Material3_TextInputLayout_OutlinedBox);
+        TextInputEditText editText = new TextInputEditText(textInputLayout.getContext());
+        textInputLayout.addView(editText);
+
+        editText.setHint("Enter new name");
+
+        new MaterialAlertDialogBuilder(this,
+                com.google.android.material.R.style.ThemeOverlay_Material3_MaterialAlertDialog)
+                .setTitle("Rename Relay")
+                .setView(textInputLayout)
+                .setPositiveButton("OK", (dialog, which) -> {
                     String newName = editText.getText().toString().trim();
                     if (!newName.isEmpty()) {
+                        if (relayNumber == 1) relay1Text.setText(newName);
+                        else relay2Text.setText(newName);
                         saveRelayName(relayNumber, newName);
-                        updateRelayName(relayNumber, newName);
                     }
                 })
                 .setNegativeButton("Cancel", null)
@@ -183,71 +358,16 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void saveRelayName(int relayNumber, String name) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putString("relay" + relayNumber + "_name", name);
-        editor.apply();
+        String key = "relay" + relayNumber + "_name";
+        sharedPreferences.edit().putString(key, name).apply();
     }
 
-    private void updateRelayName(int relayNumber, String name) {
-        if (relayNumber == 1) {
-            relay1Text.setText(name);
-        } else {
-            relay2Text.setText(name);
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        for (Timer timer : relayTimers.values()) {
+            timer.cancel();
         }
-    }
-
-    private void loadRelayNames() {
-        String relay1Name = sharedPreferences.getString("relay1_name", "Relay 1");
-        String relay2Name = sharedPreferences.getString("relay2_name", "Relay 2");
-
-        relay1Text.setText(relay1Name);
-        relay2Text.setText(relay2Name);
-    }
-
-    private void fetchRelayState() {
-        fetchStateForSwitch("/relay1", relay1Switch);
-        fetchStateForSwitch("/relay2", relay2Switch);
-    }
-
-    private void fetchStateForSwitch(String relayEndpoint, MaterialSwitch switchMaterial) {
-        String url = "http://" + ESP8266_IP + relayEndpoint + "/state";
-
-        StringRequest request = new StringRequest(Request.Method.GET, url,
-                response -> {
-                    switchMaterial.setOnCheckedChangeListener(null);
-                    switchMaterial.setChecked("on".equals(response.trim()));
-                    switchMaterial.setOnCheckedChangeListener((buttonView, isChecked) ->
-                            toggleRelay(relayEndpoint, isChecked));
-                },
-                error -> Log.e(TAG, "Error fetching state: " + error.getMessage()));
-
-        queue.add(request);
-    }
-
-    private void toggleRelay(String relayEndpoint, boolean isChecked) {
-        String endpoint = relayEndpoint + "/" + (isChecked ? "on" : "off");
-        String url = "http://" + ESP8266_IP + endpoint;
-
-        Log.d(TAG, "Constructed URL: " + url);
-
-        StringRequest request = new StringRequest(Request.Method.GET, url,
-                response -> Log.d(TAG, "Response: " + response),
-                error -> Log.e(TAG, "Error: " + error.getMessage()));
-
-        queue.add(request);
-    }
-
-    private void saveSwitchState(String relayKey, boolean isChecked) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putBoolean(relayKey, isChecked);
-        editor.apply();
-    }
-
-    private void loadSwitchStates() {
-        boolean relay1State = sharedPreferences.getBoolean("relay1", false);
-        boolean relay2State = sharedPreferences.getBoolean("relay2", false);
-
-        relay1Switch.setChecked(relay1State);
-        relay2Switch.setChecked(relay2State);
+        relayTimers.clear();
     }
 }

@@ -10,4 +10,12 @@
         android:id="@+id/settings"
         android:title="@string/settings"
         app:showAsAction="never" />
+    <item
+        android:id="@+id/menu_action_timer"
+        android:icon="@drawable/baseline_access_time_24"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/menu_timer_display"
+        android:title=""
+        app:showAsAction="ifRoom" />
 </menu>
