@@ -3,5 +3,6 @@
     <string name="settings">Settings</string>
     <string name="about">About</string>
     <string name="website">Website</string>
-
+    <string name="relay1">Relay 1</string>
+    <string name="relay2">Relay 2</string>
 </resources>
